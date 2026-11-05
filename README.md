@@ -4,7 +4,9 @@ Lattice is an experimental desktop application for visually specifying software 
 
 Use Lattice to describe responsibilities, interfaces, workflows, constraints, and acceptance criteria, then export a specification for implementation. Lattice specifies systems; it does not execute them.
 
-**Windows x64 · React / TypeScript / Electron · [MIT license](LICENSE)**
+**Windows x64 | React / TypeScript / Electron | [MIT license](LICENSE)**
+
+![lattice-interface](docs/media/lattice-desktop-dark-theme.png)
 
 ## Features
 
@@ -79,7 +81,7 @@ npm run release:history
 
 Electron tests require a Windows desktop session. A host test creates a temporary junction to check workspace isolation. The packaged smoke test is skipped unless `LATTICE_PACKAGED_EXE` points to an executable extracted from the built ZIP; run that check separately as described in the [release guide](docs/releasing.md).
 
-The Windows [GitHub Actions workflow](.github/workflows/ci.yml) installs the pinned toolchain, checks formatting, source boundaries and dependency advisories, runs verification, and tests the extracted Windows package. It has read-only repository permissions and no publishing step. Its first hosted run occurs after you upload the repository.
+The Windows [GitHub Actions workflow](.github/workflows/ci.yml) installs the pinned toolchain, checks formatting, source boundaries and dependency advisories, runs verification, and tests the extracted Windows package. It has read-only repository permissions and no publishing step.
 
 See [contributing](CONTRIBUTING.md), [implementation contracts and known schema limits](docs/contracts.md), [manual release preparation](docs/releasing.md), and [security and privacy](SECURITY.md).
 
