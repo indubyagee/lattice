@@ -62,6 +62,7 @@ test('actual Electron boot, keyboard insertion and shared identity', async () =>
   await page.getByLabel('Component name').fill('Shared system');
   await page.getByLabel('Component name').press('Enter');
   await expect(page.locator('.component-node strong')).toContainText(['Shared system']);
+  await expect(page.getByLabel('Component name')).toBeEditable();
   await page.getByRole('button', { name: '02 Behavior' }).click();
   await expect(page.locator('.component-node strong')).toContainText(['Shared system']);
   await page.getByRole('button', { name: '03 Information' }).click();
@@ -80,6 +81,7 @@ test('simulated proposals require acceptance and preserve intervening revisions'
   await expect(page.getByRole('heading', { name: 'Review proposed changes' })).toBeVisible();
   await page.getByLabel('Component name').fill('Newer user edit');
   await page.getByLabel('Component name').press('Enter');
+  await expect(page.getByLabel('Component name')).toBeEditable();
   await page.getByRole('button', { name: 'Accept selected commands' }).click();
   await expect(page.getByRole('alert')).toContainText('Stale proposal');
   await expect(page.getByLabel('Component name')).toHaveValue('Newer user edit');
@@ -284,6 +286,65 @@ test('desktop boundary rejects malformed commands and prevents renderer Node acc
   });
   expect(result).toEqual({ rejected: true, unchanged: true, node: 'undefined' });
 });
+test('a pending rename is visible across views and rolls back when journaling fails', async () => {
+  const originalName = 'Reviewer from file';
+  const pendingName = 'Pending component name';
+  await page.getByLabel('Search all components').fill(originalName);
+  await page.locator('.search-results button').first().click();
+  const input = page.getByLabel('Component name');
+  await expect(input).toHaveValue(originalName);
+  const before = await page.evaluate(() => window.lattice.snapshot());
+  const journal = await application.evaluateHandle(
+    (_electron, { file, name }) => {
+      const fs = process.getBuiltinModule('node:fs').promises;
+      const rename = fs.rename;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const control = {
+        reached: false,
+        finish() {
+          fs.rename = rename;
+          release();
+        },
+      };
+      fs.rename = async (from, to) => {
+        if (to === file && (await fs.readFile(from, 'utf8')).includes(JSON.stringify(name))) {
+          control.reached = true;
+          await gate;
+          throw new Error('Injected recovery journal failure');
+        }
+        return rename(from, to);
+      };
+      return control;
+    },
+    {
+      file: path.join(before.directory!, '.lattice', 'recovery', 'semantic.json'),
+      name: pendingName,
+    },
+  );
+  const labels = page.locator('.component-node strong');
+  try {
+    await input.fill(pendingName);
+    await input.press('Enter');
+    await expect.poll(() => journal.evaluate((control) => control.reached)).toBe(true);
+    await expect(labels.filter({ hasText: pendingName })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Saving name…' })).toBeVisible();
+    await page.getByRole('button', { name: '02 Behavior' }).click();
+    await expect(labels.filter({ hasText: pendingName })).toBeVisible();
+    expect((await page.evaluate(() => window.lattice.snapshot())).project).toEqual(before.project);
+  } finally {
+    await journal.evaluate((control) => control.finish());
+    await journal.dispose();
+  }
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Injected recovery journal failure' }),
+  ).toBeVisible();
+  await expect(labels.filter({ hasText: pendingName })).toHaveCount(0);
+  await expect(labels.filter({ hasText: originalName })).toBeVisible();
+  await expect(input).toHaveValue(originalName);
+  await expect(input).toBeEditable();
+  expect((await page.evaluate(() => window.lattice.snapshot())).project).toEqual(before.project);
+});
 test('500/1,000 fixture visible-paint edit and cross-view selection performance', async () => {
   test.setTimeout(120000);
   const directory = path.join(local, 'performance');
@@ -299,7 +360,11 @@ test('500/1,000 fixture visible-paint edit and cross-view selection performance'
   await page.locator('.search-results button').first().click();
   await expect(page.getByLabel('Component name')).toHaveValue('Component 001');
   await page.getByRole('button', { name: 'Focus selection', exact: true }).click();
-  const editSamples: number[] = [];
+  await expect(page.locator('.react-flow__node.selected .component-node strong')).toHaveText(
+    'Component 001',
+  );
+  const editSamples: number[] = [],
+    commitSamples: number[] = [];
   const profiler =
     process.env.LATTICE_PROFILE === '1' ? await page.context().newCDPSession(page) : null;
   if (profiler) {
@@ -309,39 +374,64 @@ test('500/1,000 fixture visible-paint edit and cross-view selection performance'
   for (let i = 0; i < 35; i++) {
     const name = `Measured component ${i}`;
     await page.getByLabel('Component name').fill(name);
-    const elapsed = await page.evaluate(async (name) => {
-      const start = performance.now();
-      (document.querySelector('[aria-label="Component name"]') as HTMLInputElement).blur();
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          observer.disconnect();
-          reject(new Error('Graph did not reflect edit'));
-        }, 10000);
-        const check = () => {
-          if (
-            [...document.querySelectorAll('.component-node strong')].some(
-              (e) => e.textContent === name,
-            )
-          ) {
+    const elapsed = await page.evaluate(
+      async ({ name, revision }) => {
+        const input = document.querySelector<HTMLInputElement>('[aria-label="Component name"]')!;
+        const canvas = document.querySelector('[data-testid="canvas"]')!;
+        let start = 0;
+        let recordPaint!: (elapsed: number) => void;
+        let recordCommit!: (elapsed: number) => void;
+        const paint = new Promise<number>((resolve) => (recordPaint = resolve));
+        const commit = new Promise<number>((resolve) => (recordCommit = resolve));
+        const observer = new MutationObserver(() => {
+          const label = canvas.querySelector('.react-flow__node.selected .component-node strong');
+          if (label?.textContent === name) {
             observer.disconnect();
-            clearTimeout(timer);
-            resolve();
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => recordPaint(performance.now() - start)),
+            );
           }
-        };
-        const observer = new MutationObserver(check);
-        observer.observe(document.querySelector('[data-testid="canvas"]')!, {
-          subtree: true,
-          childList: true,
-          characterData: true,
         });
-        check();
-      });
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
-      return performance.now() - start;
-    }, name);
-    if (i >= 5) editSamples.push(elapsed);
+        const unsubscribe = window.lattice.onSessionEvent((event) => {
+          if (
+            event.kind === 'update' &&
+            event.project.revision === revision &&
+            event.entities['entity-1']?.name === name
+          )
+            recordCommit(performance.now() - start);
+        });
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          observer.observe(canvas, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+          });
+          start = performance.now();
+          input.blur();
+          // Wait for both the visible update and the journaled revision before starting the next edit.
+          const [paintMs, commitMs] = await Promise.race([
+            Promise.all([paint, commit]),
+            new Promise<never>((_resolve, reject) => {
+              timer = setTimeout(
+                () => reject(new Error(`Expected graph paint and journaled revision ${revision}`)),
+                10000,
+              );
+            }),
+          ]);
+          return { paintMs, commitMs };
+        } finally {
+          clearTimeout(timer);
+          observer.disconnect();
+          unsubscribe();
+        }
+      },
+      { name, revision: i + 1 },
+    );
+    if (i >= 5) {
+      editSamples.push(elapsed.paintMs);
+      commitSamples.push(elapsed.commitMs);
+    }
   }
   const selectionSamples: number[] = [];
   for (let i = 0; i < 25; i++) {
@@ -373,10 +463,12 @@ test('500/1,000 fixture visible-paint edit and cross-view selection performance'
     entities: 500,
     relationships: 1000,
     method:
-      'Edit: inspector blur through graph text update and two animation frames. Cross-view selection: selected entity retained through view-tab click and two animation frames.',
+      'Edit feedback: inspector blur through graph text update and two animation frames. Commit: inspector blur through publication of the journaled revision. Cross-view selection: selected entity retained through view-tab click and two animation frames.',
     editP95Ms: p95(editSamples),
+    commitP95Ms: p95(commitSamples),
     selectionP95Ms: p95(selectionSamples),
     editSamples,
+    commitSamples,
     selectionSamples,
     targetMs: 100,
     measuredAt: new Date().toISOString(),

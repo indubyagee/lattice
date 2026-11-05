@@ -108,6 +108,7 @@ export function buildScene(
         position,
         selected: selected.includes(e.id),
         data: {
+          entityId: e.id,
           label: e.name,
           typeName: d?.name ?? 'Unknown type',
           family: d?.family ?? 'unknown',

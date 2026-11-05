@@ -22,6 +22,7 @@ export type DiagramNode = Node<
     reference: string;
     tooltip: string;
     neighbor: boolean;
+    entityId?: string;
     containerId?: string;
     collapsed?: boolean;
     description?: string;
@@ -30,9 +31,13 @@ export type DiagramNode = Node<
   'component' | 'frame'
 >;
 const ComponentNode = memo(function ComponentNode({ data, selected }: NodeProps<DiagramNode>) {
+  const name = useEditor((s) => s.snapshot?.project.entities[data.entityId ?? '']?.name);
+  const pendingName = useEditor((s) =>
+    s.pendingRename?.entityId === data.entityId ? s.pendingRename?.name : undefined,
+  );
   return (
     <div
-      data-help={data.tooltip}
+      data-help={pendingName === undefined ? data.tooltip : `Saving component name: ${pendingName}`}
       className={`component-node family-${data.family} render-${data.renderer} symbol-${symbolFor(data.reference, data.family)}${selected ? ' selected' : ''}${data.neighbor ? ' is-neighbor' : ''}`}
     >
       <Handle type="target" position={Position.Left} />
@@ -52,8 +57,10 @@ const ComponentNode = memo(function ComponentNode({ data, selected }: NodeProps<
           </span>
         )}
       </div>
-      <strong>{data.label}</strong>
-      <div className="node-caption">{data.implementation} specification</div>
+      <strong>{pendingName ?? name ?? data.label}</strong>
+      <div className="node-caption">
+        {data.implementation} specification{pendingName === undefined ? '' : ' · name pending'}
+      </div>
       <Handle type="source" position={Position.Right} />
     </div>
   );

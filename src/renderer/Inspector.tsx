@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useEditor, edit, run } from './store';
+import { useEditor, edit, renameEntity, run } from './store';
 import { copySelection, deletionPreview } from '../domain/commands';
 import {
   uid,
@@ -135,6 +135,7 @@ function RelationshipInspector({ relationship: r }: { relationship: Relationship
 export function Inspector() {
   const {
     snapshot,
+    pendingRename,
     selected,
     selectedRelation,
     selectedContainer,
@@ -146,8 +147,7 @@ export function Inspector() {
   } = useEditor();
   const p = snapshot?.project;
   const entity = p?.entities[selected[0] ?? ''];
-  const [name, setName] = useState(''),
-    [json, setJson] = useState('{}'),
+  const [json, setJson] = useState('{}'),
     [deleting, setDeleting] = useState(false);
   const [migration, setMigration] = useState('');
   const [migrationPreview, setMigrationPreview] = useState<{
@@ -155,7 +155,6 @@ export function Inspector() {
     summary: string;
   } | null>(null);
   const propertiesJson = JSON.stringify(entity?.properties ?? {}, null, 2);
-  useEffect(() => setName(entity?.name ?? ''), [entity?.id, entity?.name]);
   useEffect(() => setJson(propertiesJson), [entity?.id, propertiesJson]);
   useEffect(() => setDeleting(false), [entity?.id]);
   if (!snapshot || !p) return null;
@@ -186,6 +185,8 @@ export function Inspector() {
     );
   const definition = p.types[entity.typeRef],
     properties = definition?.schema.properties as JsonObject | undefined;
+  const pendingName = pendingRename?.entityId === entity.id ? pendingRename.name : undefined;
+  const displayName = pendingName ?? entity.name;
   async function setProperty(key: string, value: JsonValue) {
     if (!entity) return;
     await edit(
@@ -223,17 +224,29 @@ export function Inspector() {
           Component name
           <input
             aria-label="Component name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => {
-              if (name !== entity.name)
-                void edit([{ kind: 'update-entity', id: entity.id, name }], 'Rename entity');
+            key={JSON.stringify([p.id, entity.id, displayName])}
+            defaultValue={displayName}
+            readOnly={snapshot.readOnly || pendingRename !== null}
+            onBlur={async ({ currentTarget: input }) => {
+              const name = input.value;
+              if (input.readOnly || name === entity.name) return;
+              if (
+                !(await renameEntity(entity.id, name)) &&
+                input.isConnected &&
+                input.value === name
+              )
+                input.value = entity.name;
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
           />
         </label>
+        {pendingName !== undefined && (
+          <small className="muted" role="status">
+            Saving name…
+          </small>
+        )}
         <p className="identity">{entity.id}</p>
         <div className="type-reference">{entity.typeRef}</div>
         <section>

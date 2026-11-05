@@ -224,11 +224,13 @@ test('independent custom palettes, every requested style control and tooltip tim
 test('object snapping displays guides and persists the aligned position', async () => {
   await page.getByLabel('Component name').fill('A');
   await page.getByLabel('Component name').press('Enter');
+  await expect(page.getByLabel('Component name')).toBeEditable();
   await page.getByRole('button', { name: 'Insert System', exact: true }).click();
   await expect(page.getByLabel('Component name')).toHaveValue('System');
   await page.getByLabel('Component name').fill('B');
   await page.getByLabel('Component name').press('Enter');
   await expect(page.locator('.component-node strong').filter({ hasText: /^B$/ })).toBeVisible();
+  await expect(page.getByLabel('Component name')).toBeEditable();
   await page.evaluate(async () => {
     const s = await window.lattice.snapshot(),
       v = s.views.architecture;

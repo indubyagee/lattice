@@ -10,6 +10,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { worldPosition } from '../../src/projection/containers';
+import type { ViewDefinition } from '../../src/domain/types';
 test.describe.configure({ mode: 'serial' });
 test.use({ trace: process.env.LATTICE_TRACE ? 'retain-on-failure' : 'off' });
 let app: ElectronApplication, page: Page, local: string;
@@ -34,6 +35,7 @@ async function rename(name: string) {
   await expect(
     page.locator('.component-node strong').filter({ hasText: new RegExp(`^${name}$`) }),
   ).toBeVisible();
+  await expect(page.getByLabel('Component name')).toBeEditable();
 }
 async function selectNode(name: string, shift = false) {
   await page
@@ -267,31 +269,50 @@ test('containers group, nest, resize, arrange, collapse and remove without seman
   await header.click();
   const oldGroup = (await snapshot()).views.architecture.containers![0]!,
     headerBox = await header.boundingBox();
-  await page.mouse.move(headerBox!.x + headerBox!.width / 2, headerBox!.y + headerBox!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(
-    headerBox!.x + headerBox!.width / 2 + 35,
-    headerBox!.y + headerBox!.height / 2 + 20,
-    { steps: 6 },
-  );
-  await page.mouse.up();
-  await expect
-    .poll(async () => (await snapshot()).views.architecture.containers![0]!.x)
-    .not.toBe(oldGroup.x);
-  const childPositions = nested.appearances
-    .filter((a) => a.parentAppearanceId)
-    .map((a) => [a.id, a.x, a.y]);
-  await page.getByRole('button', { name: 'Arrange', exact: true }).click();
-  await expect
-    .poll(async () =>
-      JSON.stringify((await snapshot()).views.architecture.containers!.map((c) => [c.x, c.y])),
-    )
-    .not.toBe(JSON.stringify(nested.containers!.map((c) => [c.x, c.y])));
-  expect(
-    (await snapshot()).views.architecture.appearances
+  // Wait for both layout changes to reach the renderer before using them as baselines.
+  const updates = await page.evaluateHandle(() => {
+    let view: ViewDefinition | undefined;
+    const stop = window.lattice.onSessionEvent((event) => {
+      if (event.kind === 'update' && event.views.architecture) view = event.views.architecture;
+    });
+    return { latest: () => view, stop };
+  });
+  try {
+    await page.mouse.move(
+      headerBox!.x + headerBox!.width / 2,
+      headerBox!.y + headerBox!.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      headerBox!.x + headerBox!.width / 2 + 35,
+      headerBox!.y + headerBox!.height / 2 + 20,
+      { steps: 6 },
+    );
+    await page.mouse.up();
+    await expect
+      .poll(() =>
+        updates.evaluate(({ latest }, oldX) => {
+          const x = latest()?.containers?.[0]?.x;
+          return x !== undefined && x !== oldX;
+        }, oldGroup.x),
+      )
+      .toBe(true);
+    const beforeArrange = await updates.evaluate(({ latest }) => latest()!);
+    const childPositions = beforeArrange.appearances
       .filter((a) => a.parentAppearanceId)
-      .map((a) => [a.id, a.x, a.y]),
-  ).toEqual(childPositions);
+      .map((a) => [a.id, a.x, a.y]);
+    await page.getByRole('button', { name: 'Arrange', exact: true }).click();
+    await expect
+      .poll(() => updates.evaluate(({ latest }) => latest()?.containers?.map((c) => [c.x, c.y])))
+      .not.toEqual(beforeArrange.containers!.map((c) => [c.x, c.y]));
+    const arranged = await updates.evaluate(({ latest }) => latest()!);
+    expect(
+      arranged.appearances.filter((a) => a.parentAppearanceId).map((a) => [a.id, a.x, a.y]),
+    ).toEqual(childPositions);
+  } finally {
+    await updates.evaluate(({ stop }) => stop());
+    await updates.dispose();
+  }
   await page.locator('.container-title strong').filter({ hasText: 'Intake group' }).click();
   await expect(page.getByLabel('Parent container').locator('option')).not.toContainText([
     'Nested notes',
