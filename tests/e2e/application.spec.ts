@@ -386,6 +386,7 @@ test('500/1,000 fixture visible-paint edit and cross-view selection performance'
   const evidence = process.env.LATTICE_EVIDENCE_DIR ?? path.join(os.tmpdir(), 'lattice-evidence');
   await fs.mkdir(evidence, { recursive: true });
   await fs.writeFile(path.join(evidence, 'ui-performance.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result));
   if (profiler) {
     const { profile } = await profiler.send('Profiler.stop');
     await fs.writeFile(path.join(evidence, 'renderer-cpu-profile.json'), JSON.stringify(profile));

@@ -173,6 +173,91 @@ describe('diagram semantics and help', () => {
   });
 });
 describe('graph connection visibility', () => {
+  it('retains unchanged graph arrays across updates and invalidates changed presentation', () => {
+    const { project, view } = fixture(),
+      [a, b, c] = Object.keys(project.entities) as [string, string, string],
+      cache: SceneCache = { nodes: new Map(), edges: new Map() };
+    for (const [id, source, target] of [
+      ['ab', a, b],
+      ['bc', b, c],
+    ] as const)
+      project.relationships[id] = {
+        id,
+        source,
+        target,
+        typeRef: typeRef('depends-on'),
+        properties: {},
+        provenance: provenance(),
+      };
+    const scene = (
+      selected: string[] = [],
+      findings = { counts: new Map<string, number>(), failed: new Set<string>() },
+      theme: 'light' | 'dark' = 'light',
+    ) =>
+      buildScene(
+        project,
+        view,
+        visibleProjection(project, view),
+        selected,
+        null,
+        findings,
+        theme,
+        cache,
+        true,
+      );
+    const initial = scene();
+    project.revision++;
+    const unchanged = scene();
+    expect(unchanged.nodes).toBe(initial.nodes);
+    expect(unchanged.edges).toBe(initial.edges);
+
+    project.entities[a] = { ...project.entities[a]!, name: 'Renamed component' };
+    const renamed = scene();
+    expect(renamed.nodes).not.toBe(initial.nodes);
+    expect(renamed.nodes[0]!.data.label).toBe('Renamed component');
+    expect(renamed.nodes[1]).toBe(initial.nodes[1]);
+    expect(renamed.edges[0]!.ariaLabel).toContain('Renamed component');
+    expect(renamed.edges[1]).toBe(initial.edges[1]);
+
+    view.appearances[0] = { ...view.appearances[0]!, x: 900 };
+    const moved = scene();
+    expect(moved.nodes[0]!.position.x).toBe(900);
+    expect(moved.edges).toBe(renamed.edges);
+
+    const selected = scene([a]);
+    expect(selected.nodes[0]!.selected).toBe(true);
+    expect(selected.nodes[1]!.data.neighbor).toBe(true);
+    expect(selected.edges[0]!.className).toContain('is-adjacent');
+    const checked = scene([a], { counts: new Map([[b, 2]]), failed: new Set(['bc']) });
+    expect(checked.nodes[1]!.data.issues).toBe(2);
+    expect(checked.edges[1]!.label).toContain('!');
+
+    project.relationships.bc!.properties.importance = 'critical';
+    const emphasized = scene();
+    expect(emphasized.edges[1]!.label).toContain('CRITICAL');
+    expect(emphasized.edges[1]!.style!.strokeWidth).toBe(3.2);
+    const dark = scene([], undefined, 'dark');
+    expect(dark.edges[1]!.style!.stroke).not.toBe(emphasized.edges[1]!.style!.stroke);
+
+    const definition = project.relationTypes[typeRef('depends-on')]!;
+    definition.name = 'Custom dependency';
+    definition.direction = 'undirected';
+    const redefined = scene();
+    expect(redefined.edges[1]!.label).toContain('Custom dependency');
+    expect(redefined.edges[1]!.markerEnd).toBeUndefined();
+    project.relationships.bc!.target = a;
+    const reconnected = scene();
+    expect(reconnected.edges[1]!.target).toBe(reconnected.nodes[0]!.id);
+    project.relationships.bc!.typeRef = typeRef('reads');
+    expect(scene().edges[1]!.className).toBe('edge-information');
+
+    delete project.relationships.ab;
+    expect(scene().edges.map((e) => e.id)).toEqual(['bc']);
+    project.relationships = {};
+    const empty = scene();
+    expect(empty.edges).toEqual([]);
+    expect(scene().edges).toBe(empty.edges);
+  });
   it('toggles edges at either system endpoint, retaining nodes, peer edges and model data', () => {
     const project = createProject(),
       system = createEntity(typeRef('system'), 'System'),

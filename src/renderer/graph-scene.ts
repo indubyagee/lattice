@@ -15,7 +15,14 @@ import type { DiagramNode } from './GraphNodes';
 export interface SceneCache {
   projectId?: string;
   nodes: Map<string, DiagramNode>;
-  edges: Map<string, { key: string; edge: Edge }>;
+  edges: Map<string, { key: unknown[]; edge: Edge }>;
+  nodeList?: DiagramNode[];
+  edgeList?: Edge[];
+}
+function sameItems<T>(previous: T[] | undefined, next: T[]): T[] {
+  return previous?.length === next.length && next.every((item, index) => item === previous[index])
+    ? previous
+    : next;
 }
 export function buildScene(
   project: Project,
@@ -31,6 +38,8 @@ export function buildScene(
   if (cache.projectId !== project.id) {
     cache.nodes.clear();
     cache.edges.clear();
+    cache.nodeList = undefined;
+    cache.edgeList = undefined;
     cache.projectId = project.id;
   }
   const counts = new Map<string, number>(),
@@ -164,20 +173,28 @@ export function buildScene(
   const edges = relationships.map((r) => {
     const id = r.id,
       definition = project.relationTypes[r.typeRef],
-      cue = edgePresentation(
-        r.typeRef,
-        r.properties,
-        theme,
-        findings.failed.has(id),
-        adjacent.edges.has(id),
-      ),
       source = byAppearance.get(first.get(r.source)!)!,
       target = byAppearance.get(first.get(r.target)!)!,
-      label = `${definition?.name ?? kindOf(r.typeRef)}${cue.importance !== 'normal' ? ` · ${cue.importance.toUpperCase()}` : ''}${findings.failed.has(id) ? ' · !' : ''}`,
-      ariaLabel = `${project.entities[r.source]!.name} ${kindOf(r.typeRef)} ${project.entities[r.target]!.name}. ${cue.description} Importance: ${cue.importance}.`,
-      key = JSON.stringify([source, target, label, ariaLabel, cue, definition?.direction]);
+      failed = findings.failed.has(id),
+      connected = adjacent.edges.has(id),
+      key = [
+        source,
+        target,
+        project.entities[r.source]!.name,
+        project.entities[r.target]!.name,
+        r.typeRef,
+        String(r.properties.importance),
+        definition?.name,
+        definition?.direction,
+        theme,
+        failed,
+        connected,
+      ];
     const cached = cache.edges.get(id);
-    if (cached?.key === key) return cached.edge;
+    if (cached && sameItems(cached.key, key) === cached.key) return cached.edge;
+    const cue = edgePresentation(r.typeRef, r.properties, theme, failed, connected),
+      label = `${definition?.name ?? kindOf(r.typeRef)}${cue.importance !== 'normal' ? ` · ${cue.importance.toUpperCase()}` : ''}${failed ? ' · !' : ''}`,
+      ariaLabel = `${project.entities[r.source]!.name} ${kindOf(r.typeRef)} ${project.entities[r.target]!.name}. ${cue.description} Importance: ${cue.importance}.`;
     const edge: Edge = {
       id,
       source,
@@ -185,12 +202,12 @@ export function buildScene(
       zIndex: 1,
       label,
       ariaLabel,
-      className: `edge-${cue.category}${adjacent.edges.has(id) ? ' is-adjacent' : ''}`,
+      className: `edge-${cue.category}${connected ? ' is-adjacent' : ''}`,
       style: {
         stroke: cue.color,
         strokeWidth: cue.width,
         strokeDasharray: cue.dash,
-        strokeOpacity: adjacent.edges.has(id) ? 1 : 0.85,
+        strokeOpacity: connected ? 1 : 0.85,
       },
       labelStyle: { fontSize: 10, fill: 'var(--text-strong)' },
       labelBgStyle: { fill: 'var(--canvas)' },
@@ -205,5 +222,8 @@ export function buildScene(
     cache.edges.set(id, { key, edge });
     return edge;
   });
-  return { nodes, edges, byAppearance, byRender, entityId };
+  // React Flow rebuilds its lookups when array identity changes, even if every item is cached.
+  cache.nodeList = sameItems(cache.nodeList, nodes);
+  cache.edgeList = sameItems(cache.edgeList, edges);
+  return { nodes: cache.nodeList, edges: cache.edgeList, byAppearance, byRender, entityId };
 }
