@@ -168,7 +168,8 @@ describe('project sessions', () => {
     expect(s.project.entities[e.id]).toBeDefined();
     expect(s.project.revision).toBe(revision);
     expect(s.project.extensions.workspaceRoots).toEqual({ [id]: 'Evidence' });
-    expect(s.roots.get(id)).toBe(moved);
+    // Root mappings are canonical even when Windows TEMP uses a short-path alias.
+    expect(s.roots.get(id)).toBe(await fs.realpath(moved));
   });
   async function session() {
     const s = new ProjectSession(path.join(directory, 'settings'));
