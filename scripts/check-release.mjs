@@ -24,6 +24,7 @@ const rootFiles = new Set([
   'tsconfig.json',
   'vitest.config.ts',
   'docs/contracts.md',
+  'docs/media/lattice-desktop-dark-theme.png',
   'docs/releasing.md',
   'docs/third-party.md',
 ]);
