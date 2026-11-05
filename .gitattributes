@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Private development material must never enter source archives.
+/AGENTS.md export-ignore
+/AGENTS.override.md export-ignore
+/tasks export-ignore
+/.agents export-ignore
+/.codex export-ignore
+/.claude export-ignore
+/.cursor export-ignore
+/docs/evidence export-ignore
+/fixtures/source-manifest.json export-ignore

@@ -1,0 +1,47 @@
+[hidden] {
+  display: none !important;
+}
+.tab-number {
+  opacity: 1;
+}
+.react-flow__attribution a {
+  color: var(--text-muted);
+}
+.panel-container {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.visual-group {
+  border: 1px dashed var(--border-strong) !important;
+  background: var(--container-surface) !important;
+  border-radius: 10px;
+  padding: 8px;
+}
+.visual-group .component-node {
+  box-shadow: none;
+  background: var(--unknown-surface);
+  width: 100%;
+}
+.buffer-notice {
+  padding: 8px 12px;
+  background: var(--warning-surface);
+  color: var(--warning-text);
+  font-size: calc(var(--ui-font-size) * 0.8333);
+}
+.component-node.render-annotation {
+  background: var(--warning-surface);
+  border-style: dashed;
+  box-shadow: none;
+}
+.component-node.render-container {
+  border-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+}
+.inspector fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}

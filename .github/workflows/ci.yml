@@ -1,0 +1,61 @@
+name: Windows verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Use the pinned npm version
+        run: npm install --global npm@11.11.0 --ignore-scripts
+      - name: Install locked dependencies and Electron
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node node_modules/electron/install.js
+      - name: Review source and history boundaries
+        run: npm run release:history
+      - name: Check formatting
+        run: npm run format:check
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+      - name: Audit toolchain dependencies
+        run: npm audit --audit-level=high
+      - name: Check types, lint, unit, performance and Electron tests
+        run: npm run verify
+      - name: Build reviewed source archive
+        run: npm run release:source
+      - name: Package the unsigned Windows ZIP
+        run: npm run package:win
+      - name: Smoke test the extracted ZIP
+        run: |
+          $latticeVersion = (Get-Content -Raw -LiteralPath package.json | ConvertFrom-Json).version
+          $latticeExtract = Join-Path $env:RUNNER_TEMP 'lattice-package-smoke'
+          Expand-Archive -LiteralPath "dist/Lattice-$latticeVersion-win-x64.zip" -DestinationPath $latticeExtract
+          $env:LATTICE_PACKAGED_EXE = Join-Path $latticeExtract 'Lattice.exe'
+          npx --no-install playwright test tests/e2e/package.spec.ts

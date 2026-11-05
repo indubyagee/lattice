@@ -1,0 +1,107 @@
+{
+  "name": "lattice",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Local visual specifications for agentic and non-agentic systems",
+  "author": "Lattice contributors",
+  "license": "MIT",
+  "type": "module",
+  "main": "out/main/index.js",
+  "packageManager": "npm@11.11.0",
+  "engines": {
+    "node": ">=24.22.2 <25"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --exclude tests/performance.test.ts",
+    "test:performance": "vitest run tests/performance.test.ts",
+    "test:e2e": "npm run build && playwright test",
+    "build": "electron-vite build && node scripts/third-party-notices.mjs",
+    "package:win": "npm run release:check && npm run build && electron-builder --win zip --x64 --publish never",
+    "release:check": "node scripts/check-release.mjs",
+    "release:history": "node scripts/check-release.mjs --history",
+    "release:source": "node scripts/source-release.mjs",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run test:performance && npm run test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@xyflow/react": "12.12.0",
+    "ajv": "8.20.0",
+    "chokidar": "6.0.0",
+    "diff": "9.0.0",
+    "elkjs": "0.12.1",
+    "jsonc-parser": "3.3.1",
+    "monaco-editor": "0.57.0",
+    "proper-lockfile": "4.1.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "zustand": "5.0.16"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
+    "@types/proper-lockfile": "4.1.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "eslint": "10.14.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.0.5"
+  },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "3.4.17"
+    }
+  },
+  "build": {
+    "appId": "local.lattice",
+    "productName": "Lattice",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "!out/**/*.map",
+      "!out/THIRD_PARTY_NOTICES.txt",
+      "package.json"
+    ],
+    "asar": true,
+    "extraFiles": [
+      "LICENSE",
+      {
+        "from": "out/THIRD_PARTY_NOTICES.txt",
+        "to": "THIRD_PARTY_NOTICES.txt"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "public/icons",
+        "to": "icons",
+        "filter": [
+          "**/*.png"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "icon": "public/icons/icon-on-dark-512.png",
+      "signAndEditExecutable": true,
+      "signExecutable": false
+    },
+    "artifactName": "Lattice-${version}-win-${arch}.${ext}"
+  }
+}

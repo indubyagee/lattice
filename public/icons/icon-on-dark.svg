@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke: #b5151c;
+      }
+
+      .cls-1, .cls-2, .cls-3 {
+        fill: none;
+        stroke-linecap: round;
+        stroke-miterlimit: 10;
+        stroke-width: 5px;
+      }
+
+      .cls-2 {
+        stroke: #47a39c;
+      }
+
+      .cls-4 {
+        fill: #fff;
+      }
+
+      .cls-5 {
+        isolation: isolate;
+      }
+
+      .cls-6 {
+        mix-blend-mode: screen;
+      }
+
+      .cls-7 {
+        fill: #f0b400;
+      }
+
+      .cls-8 {
+        fill: #50a0a0;
+      }
+
+      .cls-9 {
+        fill: #b42828;
+      }
+
+      .cls-3 {
+        stroke: #deca00;
+      }
+    </style>
+  </defs>
+  <g class="cls-5">
+    <g id="APP">
+      <g>
+        <g id="cube-1">
+          <polygon class="cls-7" points="195.42 89.07 195.13 89.22 128 128 60.87 89.22 60.58 89.07 128 50.15 195.42 89.07"/>
+          <polygon class="cls-8" points="195.42 89.07 195.42 166.93 128 205.85 128 128 195.13 89.22 195.42 89.07"/>
+          <polygon class="cls-9" points="128 128 128 205.85 60.58 166.93 60.58 89.07 60.87 89.22 128 128"/>
+        </g>
+        <g id="cube-profile-hidden-1" class="cls-6">
+          <line class="cls-3" x1="128" y1="128" x2="128" y2="50.15"/>
+          <line class="cls-2" x1="195.42" y1="166.93" x2="128" y2="128"/>
+          <line class="cls-1" x1="128" y1="128" x2="60.58" y2="166.93"/>
+        </g>
+        <path class="cls-4" d="M128,8L24.02,68v120l103.98,60,103.98-60v-120L128,8ZM226.15,181.27l-27.77-16.01v-77.87l-67.46-38.93V16.42l95.23,54.95v109.9ZM128,53.51l61.61,35.55-61.61,35.57-61.61-35.57,61.61-35.55ZM63.46,94.1l61.63,35.58v71.12l-61.63-35.56v-71.14ZM130.92,129.68l61.63-35.58v71.14l-61.63,35.56v-71.12ZM125.08,16.42v32.05l-67.46,38.93v77.87l-27.77,16.01v-109.9L125.08,16.42ZM32.77,186.32l27.78-16.02,67.44,38.92,67.44-38.92,27.78,16.02-95.23,54.95-95.23-54.95Z"/>
+      </g>
+    </g>
+  </g>
+</svg>
